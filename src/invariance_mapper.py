@@ -131,10 +131,10 @@ def calc_descriptors(image):
 
 # dist_hist = np.zeros((30,))
 
-# for hpatch_sequence in hpatch_sequences:
+for hpatch_sequence in hpatch_sequences:
 
-for j in range(0, 1):
-    hpatch_sequence = hpatch_sequences[j]
+# for j in range(0, 1):
+#     hpatch_sequence = hpatch_sequences[j]
 
     descriptor_index_dict = {}
     descriptor_grid_dict = {}
