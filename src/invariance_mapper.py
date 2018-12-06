@@ -10,8 +10,6 @@
 
 import os
 from os import listdir, path
-import ntpath
-
 import numpy as np
 import cv2
 import hnswlib
@@ -33,6 +31,30 @@ hpatch_sequence_directories = [path.join(hpatches_sequences_directory, d) for d 
 hpatch_sequences = [[path.join(d, f) for f in listdir(d) if f.endswith('.ppm')] for d in hpatch_sequence_directories]
 
 l2_net = L2Net("L2Net-HP+", True)
+
+def get_heat_map_path(image_path):
+    image_path = path.splitext(image_path)[0]+'.png'
+    name = path.basename(image_path)
+    directory = path.join(heatmap_directory, path.basename(path.dirname(image_path)))
+    return path.join(directory, name)
+    
+def sequence_is_complete(hpatch_sequence):
+
+    existing_heatmaps = 0
+
+    for image_path in hpatch_sequence:
+        heatmap_path = get_heat_map_path(image_path)
+        if path.isfile(heatmap_path):
+            existing_heatmaps += 1
+    
+    if existing_heatmaps == len(hpatch_sequence):
+        print("Found a completed sequence")
+        return True
+    else:
+        return False
+
+print("Removing completed sequences")
+hpatch_sequences = [hpatch_sequence for hpatch_sequence in hpatch_sequences if not sequence_is_complete(hpatch_sequence)]
 
 def get_scaled_dims(orig_dims, new_smallest_dim):
     if orig_dims[0] < orig_dims[1]:
@@ -160,10 +182,16 @@ for hpatch_sequence in hpatch_sequences:
 
     for image_path_a in hpatch_sequence:
         
+        # if heat map already exsists skip
+        heatmap_path = get_heat_map_path(image_path_a)
+        if path.isfile(heatmap_path):
+            print("heat map already exsists")
+            continue
+
         heat_maps = []
 
         for image_path_b in hpatch_sequence:
-        
+            
             if image_path_a == image_path_b:
                 continue
         
