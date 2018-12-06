@@ -20,12 +20,12 @@ import math
 # import matplotlib.pyplot as plt
 # import matplotlib.image as mpimg
 
-image_size = 128
+image_size = 640
 window_size = 64
 descriptor_dimensions = 256
 
-hpatches_sequences_directory = "/Users/user/Desktop/hpatches-sequences-release"
-heatmap_directory = "/Users/user/Desktop/heatmaps"
+hpatches_sequences_directory = "/home/virtualgraham/hpatches-sequences-release"
+heatmap_directory = "/home/virtualgraham/heatmaps"
 
 # list all the sub-directories in the hpatches directory
 hpatch_sequence_directories = [path.join(hpatches_sequences_directory, d) for d in listdir(hpatches_sequences_directory) if path.isdir(path.join(hpatches_sequences_directory, d))]
@@ -85,7 +85,7 @@ def sliding_window(image, stepSize, windowSize):
 def calc_descriptors(image):
     batch = []
     batch_coords = []
-    batch_size = 128
+    batch_size = 10000
 
     descriptor_index = hnswlib.Index(space = 'l2', dim = descriptor_dimensions) 
     descriptor_index.init_index(max_elements = (image_size - window_size)**2, ef_construction = 200, M = 16)
@@ -97,6 +97,7 @@ def calc_descriptors(image):
 
     def run_batch():
         nonlocal completed_batches
+        print('batch', completed_batches)
         np_batch = np.array(batch)
         descriptors = l2_net.calc_descriptors(np_batch)
         descriptor_index.add_items(descriptors, [c[0] * (image_size - window_size) + c[1] for c in batch_coords])
