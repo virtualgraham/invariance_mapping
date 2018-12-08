@@ -117,10 +117,10 @@ def save_cropped(cropped, image_path):
 
 def sliding_window(image, stepSize, windowSize):
 	# slide a window across the image
-	for y in range(0, image.shape[0] - windowSize[1], stepSize):
-		for x in range(0, image.shape[1] - windowSize[0], stepSize):
+	for x in range(0, image.shape[0] - windowSize[0], stepSize):
+		for y in range(0, image.shape[1] - windowSize[1], stepSize):
 			# yield the current window
-			yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
+			yield (x, y, image[x:x + windowSize[0], y:y + windowSize[1]])
 
 def calc_descriptors(image):
     batch = []
