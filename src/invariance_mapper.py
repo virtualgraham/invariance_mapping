@@ -20,12 +20,13 @@ import math
 # import matplotlib.pyplot as plt
 # import matplotlib.image as mpimg
 
-image_size = 128
+image_size = 640
 window_size = 64
 descriptor_dimensions = 256
 
 hpatches_sequences_directory = "/Users/user/Desktop/hpatches-sequences-release"
 heatmap_directory = "/Users/user/Desktop/heatmaps"
+cropped_directory = "/Users/user/Desktop/cropped"
 
 # list all the sub-directories in the hpatches directory
 hpatch_sequence_directories = [path.join(hpatches_sequences_directory, d) for d in listdir(hpatches_sequences_directory) if path.isdir(path.join(hpatches_sequences_directory, d))]
@@ -37,19 +38,22 @@ l2_net = L2Net("L2Net-HP+", True)
 def get_scaled_dims(orig_dims, new_smallest_dim):
     if orig_dims[0] < orig_dims[1]:
         new_larger_dim = (new_smallest_dim/orig_dims[0]) * orig_dims[1]
-        return (int(new_smallest_dim), int(new_larger_dim))
+        return (int(new_larger_dim), int(new_smallest_dim))
     else:
         new_larger_dim = (new_smallest_dim/orig_dims[1]) * orig_dims[0]
-        return (int(new_larger_dim), int(new_smallest_dim))
+        return (int(new_smallest_dim), int(new_larger_dim))
 
 def crop_to_square(image):
     diff = abs(image.shape[1] - image.shape[0])
     diff = diff//2
     if image.shape[0] < image.shape[1]:
+        print('image.shape[0] < image.shape[1]', image.shape[0], image.shape[1])
         return image[:,diff:(diff+image.shape[0])]
     elif image.shape[1] < image.shape[0]:
+        print('image.shape[1] < image.shape[0]', image.shape[1], image.shape[0])
         return image[diff:(diff+image.shape[1]),:]
     else:
+        print('else')
         return image
 
 def open_and_prepare_image(image_path):
@@ -72,6 +76,20 @@ def save_heat_map(heat_map, image_path):
         os.makedirs(directory)
 
     cv2.imwrite(path.join(directory, name), heat_map)
+
+    return
+
+def save_cropped(cropped, image_path):
+    print(cropped.shape)
+
+    image_path = path.splitext(image_path)[0]+'.png'
+    name = path.basename(image_path)
+    directory = path.join(cropped_directory, path.basename(path.dirname(image_path)))
+
+    if not path.exists(directory):
+        os.makedirs(directory)
+
+    cv2.imwrite(path.join(directory, name), cropped)
 
     return
 
@@ -131,92 +149,106 @@ def calc_descriptors(image):
 
 # dist_hist = np.zeros((30,))
 
-for hpatch_sequence in hpatch_sequences:
+def make_heat_maps():
+    for hpatch_sequence in hpatch_sequences:
 
-# for j in range(0, 1):
-#     hpatch_sequence = hpatch_sequences[j]
+    # for j in range(0, 1):
+    #     hpatch_sequence = hpatch_sequences[j]
 
-    descriptor_index_dict = {}
-    descriptor_grid_dict = {}
-    
-    print('building indexes')
-
-    for image_path in hpatch_sequence:
-        print(image_path)
-        image = open_and_prepare_image(image_path)
-      
-        # print(image.shape)
-        # show_img = np.reshape(image[32:96, 32:96, :], (64, 64))
-        # print(show_img.shape)
-        # imgplot = plt.imshow(show_img)
-        # plt.show()
-
-        descriptor_index, descriptor_grid = calc_descriptors(image)
-        descriptor_index_dict[image_path] = descriptor_index
-        descriptor_grid_dict[image_path] = descriptor_grid
-
-    print('generating heat maps')
-
-    for image_path_a in hpatch_sequence:
+        descriptor_index_dict = {}
+        descriptor_grid_dict = {}
         
-        heat_maps = []
+        print('building indexes')
 
-        for image_path_b in hpatch_sequence:
+        for image_path in hpatch_sequence:
+            print(image_path)
+            image = open_and_prepare_image(image_path)
         
-            if image_path_a == image_path_b:
-                continue
-        
-            print(image_path_a, image_path_b)
+            # print(image.shape)
+            # show_img = np.reshape(image[32:96, 32:96, :], (64, 64))
+            # print(show_img.shape)
+            # imgplot = plt.imshow(show_img)
+            # plt.show()
 
-            descriptor_grid = descriptor_grid_dict[image_path_a]
-            descriptor_index = descriptor_index_dict[image_path_b]
+            descriptor_index, descriptor_grid = calc_descriptors(image)
+            descriptor_index_dict[image_path] = descriptor_index
+            descriptor_grid_dict[image_path] = descriptor_grid
 
-            heat_map = np.empty((image_size - window_size, image_size - window_size))
+        print('generating heat maps')
+
+        for image_path_a in hpatch_sequence:
+            
+            heat_maps = []
+
+            for image_path_b in hpatch_sequence:
+            
+                if image_path_a == image_path_b:
+                    continue
+            
+                print(image_path_a, image_path_b)
+
+                descriptor_grid = descriptor_grid_dict[image_path_a]
+                descriptor_index = descriptor_index_dict[image_path_b]
+
+                heat_map = np.empty((image_size - window_size, image_size - window_size))
+
+                for x in range(0, image_size - window_size):
+                    for y in range(0, image_size - window_size): 
+                        source = descriptor_grid[x][y]
+                        labels, distances = descriptor_index.knn_query(np.array([source]), k=1)
+                        d = distances[0, 0]
+                        
+                        s = d/3.0
+                        s = s if s < 1.0 else 1.0
+                        heat_map[x, y] = s
+
+                        # if min_dist == -1 or min_dist > d:
+                        #     min_dist = d
+                        # if max_dist == -1 or max_dist < d:
+                        #     max_dist = d
+
+                        # r = int(math.floor(d  * 10))
+                        # r = r if r <= 29 else 29
+                        # dist_hist[r] = dist_hist[r] + 1
+
+                heat_maps.append(heat_map)
+
+            # combine heat_maps and save as image
+
+            combined_heat_map = np.ones((image_size - window_size, image_size - window_size))
 
             for x in range(0, image_size - window_size):
                 for y in range(0, image_size - window_size): 
-                    source = descriptor_grid[x][y]
-                    labels, distances = descriptor_index.knn_query(np.array([source]), k=1)
-                    d = distances[0, 0]
-                    
-                    s = d/3.0
-                    s = s if s < 1.0 else 1.0
-                    heat_map[x, y] = s
+                    for z in range(0, len(heat_maps)):
+                        combined_heat_map[x][y] += (255 * (heat_maps[z][x][y]/len(heat_maps)))
 
-                    # if min_dist == -1 or min_dist > d:
-                    #     min_dist = d
-                    # if max_dist == -1 or max_dist < d:
-                    #     max_dist = d
+            # imgplot = plt.imshow(combined_heat_map)
+            # plt.show()
 
-                    # r = int(math.floor(d  * 10))
-                    # r = r if r <= 29 else 29
-                    # dist_hist[r] = dist_hist[r] + 1
+            save_heat_map(combined_heat_map, image_path_a)
 
-            heat_maps.append(heat_map)
+    # print('min_dist, max_dist', min_dist, max_dist)
+    # print(np.array2string(dist_hist))
 
-        # combine heat_maps and save as image
+            
+def make_cropped():
 
-        combined_heat_map = np.ones((image_size - window_size, image_size - window_size))
-
-        for x in range(0, image_size - window_size):
-            for y in range(0, image_size - window_size): 
-                for z in range(0, len(heat_maps)):
-                     combined_heat_map[x][y] += (255 * (heat_maps[z][x][y]/len(heat_maps)))
-
-        # imgplot = plt.imshow(combined_heat_map)
-        # plt.show()
-
-        save_heat_map(combined_heat_map, image_path_a)
-
-# print('min_dist, max_dist', min_dist, max_dist)
-# print(np.array2string(dist_hist))
-
+    for hpatch_sequence in hpatch_sequences:
         
+        print('making cropped')
 
-        
+        for image_path in hpatch_sequence:
+            print(image_path)
+            image = open_and_prepare_image(image_path)
+            save_cropped(image, image_path)
+
+make_heat_maps()
 
 
-        
+            
+
+
+            
 
 
 
