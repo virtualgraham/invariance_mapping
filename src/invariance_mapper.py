@@ -10,8 +10,6 @@
 
 import os
 from os import listdir, path
-import ntpath
-
 import numpy as np
 import cv2
 import hnswlib
@@ -24,9 +22,9 @@ image_size = 640
 window_size = 64
 descriptor_dimensions = 256
 
-hpatches_sequences_directory = "/Users/user/Desktop/hpatches-sequences-release"
-heatmap_directory = "/Users/user/Desktop/heatmaps"
-cropped_directory = "/Users/user/Desktop/cropped"
+hpatches_sequences_directory = "/home/virtualgraham/hpatches-sequences-release"
+heatmap_directory = "/home/virtualgraham/heatmaps"
+cropped_directory = "/home/virtualgraham/cropped"
 
 # list all the sub-directories in the hpatches directory
 hpatch_sequence_directories = [path.join(hpatches_sequences_directory, d) for d in listdir(hpatches_sequences_directory) if path.isdir(path.join(hpatches_sequences_directory, d))]
@@ -34,6 +32,30 @@ hpatch_sequence_directories = [path.join(hpatches_sequences_directory, d) for d 
 hpatch_sequences = [[path.join(d, f) for f in listdir(d) if f.endswith('.ppm')] for d in hpatch_sequence_directories]
 
 l2_net = L2Net("L2Net-HP+", True)
+
+def get_heat_map_path(image_path):
+    image_path = path.splitext(image_path)[0]+'.png'
+    name = path.basename(image_path)
+    directory = path.join(heatmap_directory, path.basename(path.dirname(image_path)))
+    return path.join(directory, name)
+    
+def sequence_is_complete(hpatch_sequence):
+
+    existing_heatmaps = 0
+
+    for image_path in hpatch_sequence:
+        heatmap_path = get_heat_map_path(image_path)
+        if path.isfile(heatmap_path):
+            existing_heatmaps += 1
+    
+    if existing_heatmaps == len(hpatch_sequence):
+        print("Found a completed sequence")
+        return True
+    else:
+        return False
+
+print("Removing completed sequences")
+hpatch_sequences = [hpatch_sequence for hpatch_sequence in hpatch_sequences if not sequence_is_complete(hpatch_sequence)]
 
 def get_scaled_dims(orig_dims, new_smallest_dim):
     if orig_dims[0] < orig_dims[1]:
@@ -103,7 +125,7 @@ def sliding_window(image, stepSize, windowSize):
 def calc_descriptors(image):
     batch = []
     batch_coords = []
-    batch_size = 128
+    batch_size = 10000
 
     descriptor_index = hnswlib.Index(space = 'l2', dim = descriptor_dimensions) 
     descriptor_index.init_index(max_elements = (image_size - window_size)**2, ef_construction = 200, M = 16)
@@ -115,6 +137,7 @@ def calc_descriptors(image):
 
     def run_batch():
         nonlocal completed_batches
+        print('batch', completed_batches)
         np_batch = np.array(batch)
         descriptors = l2_net.calc_descriptors(np_batch)
         descriptor_index.add_items(descriptors, [c[0] * (image_size - window_size) + c[1] for c in batch_coords])
@@ -178,10 +201,16 @@ def make_heat_maps():
 
         for image_path_a in hpatch_sequence:
             
+            # if heat map already exsists skip
+            heatmap_path = get_heat_map_path(image_path_a)
+            if path.isfile(heatmap_path):
+                print("heat map already exsists")
+                continue
+
             heat_maps = []
 
             for image_path_b in hpatch_sequence:
-            
+                
                 if image_path_a == image_path_b:
                     continue
             
